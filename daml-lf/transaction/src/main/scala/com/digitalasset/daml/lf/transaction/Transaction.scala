@@ -753,8 +753,9 @@ object Transaction {
           val ptx =
             copy(
               context = ec.parentContext,
-              roots = ec.parentRoots
-            ).insertNode(ec.exercisesNodeId, exerciseNode)
+              roots = ec.parentRoots :+ ec.exercisesNodeId,
+              nodes = nodes + (ec.exercisesNodeId -> exerciseNode)
+            )
           (Some(nodeId), ptx)
       }
     }
@@ -796,7 +797,10 @@ object Transaction {
         optConsumedBy: Option[TContractId]): (NodeId, PartialTransaction) =
       withFreshNodeId {
         case (nodeId, ptx) =>
-          val ptx2 = ptx.insertNode(nodeId, n(nodeId))
+          val ptx2 = ptx.copy(
+            roots = roots :+ nodeId,
+            nodes = nodes + (nodeId -> n(nodeId))
+          )
           (
             nodeId,
             optConsumedBy
