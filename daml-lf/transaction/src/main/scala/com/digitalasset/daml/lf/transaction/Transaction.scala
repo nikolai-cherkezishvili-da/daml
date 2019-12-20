@@ -464,7 +464,7 @@ object Transaction {
 
   /** A transaction under construction
     *
-    *  @param nextNodeId The next free node-id to use.
+    *  @param parentNodeId The next free node-id to use.
     *  @param nodes The nodes of the transaction graph being built up.
     *  @param roots Root nodes of the current context.
     *  @param consumedBy 'ContractId's of all contracts that have
@@ -489,7 +489,7 @@ object Transaction {
     *              locally archived absolute contract ids will succeed wrongly.
     */
   case class PartialTransaction(
-      nextNodeId: NodeId,
+      parentNodeId: NodeId,
       nodes: SortedMap[NodeId, Node],
       roots: BackStack[NodeId],
       consumedBy: Map[TContractId, NodeId],
@@ -692,6 +692,7 @@ object Transaction {
               case (nodeId, ptx) =>
                 ptx
                   .copy(
+                    parentNodeId = nodeId,
                     context = ContextExercises(
                       ExercisesContext(
                         targetId = targetId,
@@ -753,7 +754,7 @@ object Transaction {
           val ptx =
             copy(
               context = ec.parentContext,
-              roots = ec.parentRoots :+ ec.exercisesNodeId,
+              roots = ec.parentRoots,
               nodes = nodes + (ec.exercisesNodeId -> exerciseNode)
             )
           (Some(nodeId), ptx)
@@ -781,15 +782,13 @@ object Transaction {
       }
 
     /** Allocate a fresh `NodeId` */
-    def withFreshNodeId[A](f: ((NodeId, PartialTransaction)) => A): A =
-      f((this.nextNodeId, this.copy(nextNodeId.next)))
-
-    /** Insert the give `Node` under the given `NodeId` */
-    def insertNode(i: NodeId, n: Node): PartialTransaction =
-      copy(
-        roots = roots :+ i,
-        nodes = nodes + (i -> n)
-      )
+    def withFreshNodeId[A](f: ((NodeId, PartialTransaction)) => A): A = {
+      val nodeId = roots.pop match {
+        case Some((_, lastParentChild)) => lastParentChild.next
+        case None => parentNodeId.next
+      }
+      f(nodeId -> this.copy(roots = roots :+ nodeId))
+    }
 
     /** Insert the given `Node` under a fresh node-id, and return it */
     def insertFreshNode(
@@ -798,7 +797,6 @@ object Transaction {
       withFreshNodeId {
         case (nodeId, ptx) =>
           val ptx2 = ptx.copy(
-            roots = roots :+ nodeId,
             nodes = nodes + (nodeId -> n(nodeId))
           )
           (
@@ -815,7 +813,7 @@ object Transaction {
       *  contain any nodes and is not marked as aborted.
       */
     def initial = PartialTransaction(
-      nextNodeId = NodeId.first,
+      parentNodeId = NodeId.first,
       nodes = TreeMap.empty[NodeId, Node],
       roots = BackStack.empty,
       consumedBy = Map.empty,

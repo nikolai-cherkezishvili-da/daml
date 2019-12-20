@@ -334,7 +334,7 @@ object Value {
   }
 
   object NodeId {
-    val first = new NodeId(0)
+    val first = new NodeId(-1)
 
     def unsafeFromIndex(i: Int) = new NodeId(i)
   }
