@@ -94,6 +94,7 @@ object LedgerApiTestTool {
 
     val testsToRun = Tests.all.filterKeys(included -- config.excluded)
 
+
     if (testsToRun.isEmpty) {
       println("No tests to run.")
       sys.exit(0)

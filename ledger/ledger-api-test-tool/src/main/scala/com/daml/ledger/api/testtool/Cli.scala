@@ -134,6 +134,16 @@ object Cli {
       .unbounded()
       .text("""A comma-separated list of tests that should be run.""")
 
+    opt[Seq[String]]("excluded-test-cases")
+      .action((ex, c) => c.copy(excludedTestCases = c.excludedTestCases ++ ex))
+      .unbounded()
+      .text("""A comma-separated list of specific test cases that should NOT be run. By default, no test cases are excluded.""")
+
+    opt[Seq[String]]("included-test-cases")
+      .action((inc, c) => c.copy(includedTestCases = c.includedTestCases ++ inc))
+      .unbounded()
+      .text("""A comma-separated list of specific test cases that should be run.  Test cases that are not listed will not be run""")
+
     opt[Unit]("all-tests")
       .action((_, c) => c.copy(allTests = true))
       .text("""Run all default and optional tests. Respects the --exclude flag.""")
