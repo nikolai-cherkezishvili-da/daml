@@ -32,6 +32,7 @@ import com.google.protobuf.ByteString
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Random
+import scala.util.control.NonFatal
 
 class SqlLedgerReaderWriter(
     ledgerId: LedgerId = Ref.LedgerString.assertFromString(UUID.randomUUID.toString),
@@ -79,29 +80,34 @@ class SqlLedgerReaderWriter(
   }
 
   override def commit(correlationId: String, envelope: Array[Byte]): Future[SubmissionResult] = {
-    val submission = Envelope
-      .openSubmission(envelope)
-      .getOrElse(throw new IllegalArgumentException("Not a valid submission in envelope"))
-    val stateInputKeys: Set[DamlStateKey] = submission.getInputDamlStateList.asScala.toSet
-    for {
-      stateInputs <- readState(stateInputKeys)
-      entryId = allocateEntryId()
-      (logEntry, stateUpdates) = KeyValueCommitting.processSubmission(
-        engine,
-        entryId,
-        currentRecordTime(),
-        LedgerReader.DefaultTimeModel,
-        submission,
-        participantId,
-        stateInputs
-      )
-      _ = verifyStateUpdatesAgainstPreDeclaredOutputs(stateUpdates, entryId, submission)
-      newHead <- appendLog(entryId, Envelope.enclose(logEntry))
-      _ <- updateState(stateUpdates)
-      _ <- Future(connection.commit())
-    } yield {
-      dispatcher.signalNewHead(newHead)
-      SubmissionResult.Acknowledged
+    Future {
+      val submission = Envelope
+        .openSubmission(envelope)
+        .getOrElse(throw new IllegalArgumentException("Not a valid submission in envelope"))
+      val stateInputKeys: Set[DamlStateKey] = submission.getInputDamlStateList.asScala.toSet
+      try {
+        val stateInputs = readState(stateInputKeys)
+        val entryId = allocateEntryId()
+        val (logEntry, stateUpdates) = KeyValueCommitting.processSubmission(
+          engine,
+          entryId,
+          currentRecordTime(),
+          LedgerReader.DefaultTimeModel,
+          submission,
+          participantId,
+          stateInputs,
+        )
+        verifyStateUpdatesAgainstPreDeclaredOutputs(stateUpdates, entryId, submission)
+        val newHead = appendLog(entryId, Envelope.enclose(logEntry))
+        updateState(stateUpdates)
+        connection.commit()
+        dispatcher.signalNewHead(newHead)
+        SubmissionResult.Acknowledged
+      } catch {
+        case NonFatal(exception) =>
+          connection.rollback()
+          throw exception
+      }
     }
   }
 
@@ -129,7 +135,7 @@ class SqlLedgerReaderWriter(
       .build
   }
 
-  private def appendLog(entry: DamlLogEntryId, envelope: ByteString): Future[Index] = Future {
+  private def appendLog(entry: DamlLogEntryId, envelope: ByteString): Index = {
     val maxIndex =
       SQL"SELECT MAX(sequence_no) max_sequence_no FROM log"
         .as(get[Option[Int]]("max_sequence_no").single)
@@ -139,7 +145,9 @@ class SqlLedgerReaderWriter(
     currentHead + 1
   }
 
-  private def readState(stateInputKeys: Set[DamlStateKey]) = Future {
+  private def readState(
+      stateInputKeys: Set[DamlStateKey]
+  ): Map[DamlStateKey, Option[DamlStateValue]] = {
     val builder = Map.newBuilder[DamlStateKey, Option[DamlStateValue]]
     builder ++= stateInputKeys.map(_ -> None)
     SQL"SELECT key, value FROM state WHERE key IN (${stateInputKeys.map(_.toByteArray)})"
@@ -151,7 +159,7 @@ class SqlLedgerReaderWriter(
       .result()
   }
 
-  private def updateState(stateChanges: Map[DamlStateKey, DamlStateValue]): Future[Unit] = Future {
+  private def updateState(stateChanges: Map[DamlStateKey, DamlStateValue]): Unit = {
     val existingKeys =
       SQL"SELECT key FROM state WHERE key IN (${stateChanges.keys.map(_.toByteArray).toSeq})"
         .as(byteArray("key").map(DamlStateKey.parseFrom).*)
