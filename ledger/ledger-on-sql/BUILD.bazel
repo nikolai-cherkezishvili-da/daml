@@ -73,11 +73,12 @@ da_scala_binary(
 )
 
 conformance_test(
-    name = "conformance-test",
+    name = "conformance-test-h2database",
     ports = [6865],
     server = ":app",
     server_args = [
         "--port=6865",
+        "--jdbc-url=jdbc:h2:mem:daml-on-sql-conformance-test;db_close_delay=-1;db_close_on_exit=false",
     ],
     test_tool_args = [
         "--all-tests",
