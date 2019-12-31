@@ -6,6 +6,7 @@ package com.daml.ledger.on.filesystem.posix
 import java.io.File
 import java.nio.file.Path
 
+import akka.stream.Materializer
 import com.daml.ledger.participant.state.kvutils.app.{
   Config,
   KeyValueLedger,
@@ -38,7 +39,9 @@ object Main extends App {
       ()
     }
 
-    override def apply(participantId: ParticipantId, config: ExtraConfig): KeyValueLedger =
+    override def apply(participantId: ParticipantId, config: ExtraConfig)(
+        implicit materializer: Materializer,
+    ): KeyValueLedger =
       Await.result(
         FileSystemLedgerReaderWriter(
           participantId = participantId,

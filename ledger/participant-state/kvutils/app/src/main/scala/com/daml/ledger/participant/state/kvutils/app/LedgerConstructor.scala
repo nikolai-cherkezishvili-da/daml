@@ -3,6 +3,7 @@
 
 package com.daml.ledger.participant.state.kvutils.app
 
+import akka.stream.Materializer
 import com.daml.ledger.participant.state.v1.ParticipantId
 import scopt.OptionParser
 
@@ -11,7 +12,9 @@ trait LedgerConstructor[ExtraConfig] {
 
   def extraConfigParser(parser: OptionParser[Config[ExtraConfig]]): Unit
 
-  def apply(participantId: ParticipantId, config: ExtraConfig): KeyValueLedger
+  def apply(participantId: ParticipantId, config: ExtraConfig)(
+      implicit materializer: Materializer,
+  ): KeyValueLedger
 }
 
 object LedgerConstructor {
@@ -22,7 +25,9 @@ object LedgerConstructor {
       override def extraConfigParser(parser: OptionParser[Config[Unit]]): Unit =
         ()
 
-      override def apply(participantId: ParticipantId, config: Unit): KeyValueLedger =
+      override def apply(participantId: ParticipantId, config: Unit)(
+          implicit materializer: Materializer,
+      ): KeyValueLedger =
         construct(participantId)
     }
 }

@@ -3,6 +3,7 @@
 
 package com.daml.ledger.on.sql
 
+import akka.stream.Materializer
 import com.daml.ledger.participant.state.kvutils.app.{
   Config,
   KeyValueLedger,
@@ -36,7 +37,9 @@ object Main extends App {
       ()
     }
 
-    override def apply(participantId: ParticipantId, config: ExtraConfig): KeyValueLedger =
+    override def apply(participantId: ParticipantId, config: ExtraConfig)(
+        implicit materializer: Materializer,
+    ): KeyValueLedger =
       Await.result(
         SqlLedgerReaderWriter(participantId = participantId, jdbcUrl = config.jdbcUrl.getOrElse {
           throw new IllegalStateException("No root directory provided.")
