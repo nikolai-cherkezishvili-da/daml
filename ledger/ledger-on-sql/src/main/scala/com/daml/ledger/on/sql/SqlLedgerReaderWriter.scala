@@ -27,6 +27,7 @@ import com.digitalasset.daml.lf.data.Time.Timestamp
 import com.digitalasset.daml.lf.engine.Engine
 import com.digitalasset.ledger.api.health.{HealthStatus, Healthy}
 import com.digitalasset.platform.akkastreams.dispatcher.Dispatcher
+import com.digitalasset.platform.akkastreams.dispatcher.SubSource.RangeSource
 import com.google.protobuf.ByteString
 import com.zaxxer.hikari.{HikariConfig, HikariDataSource}
 import javax.sql.DataSource
@@ -65,21 +66,30 @@ class SqlLedgerReaderWriter(
 
   override def retrieveLedgerId(): LedgerId = ledgerId
 
-  override def events(offset: Option[Offset]): Source[LedgerRecord, NotUsed] = withConnection {
-    implicit connection =>
-      val startIndex = offset.getOrElse(FirstOffset).components.head + FirstIndex
-      AkkaStream
-        .source(
-          SQL"SELECT sequence_no, entry_id, envelope FROM log WHERE sequence_no >= $startIndex",
-          (long("sequence_no") ~ byteArray("entry_id") ~ byteArray("envelope")).map {
-            case index ~ entryId ~ envelope =>
-              LedgerRecord(
-                Offset(Array(index - FirstIndex)),
-                DamlLogEntryId.newBuilder().setEntryId(ByteString.copyFrom(entryId)).build(),
-                envelope)
-          }
-        )
-  }
+  override def events(offset: Option[Offset]): Source[LedgerRecord, NotUsed] =
+    dispatcher
+      .startingAt(
+        offset.getOrElse(FirstOffset).components.head,
+        RangeSource((start, end) =>
+          withConnection { implicit connection =>
+            Future(Source(
+              SQL"SELECT sequence_no, entry_id, envelope FROM log WHERE sequence_no >= $start AND sequence_no < $end"
+                .as(
+                  (long("sequence_no") ~ byteArray("entry_id") ~ byteArray("envelope")).map {
+                    case index ~ entryId ~ envelope =>
+                      index -> LedgerRecord(
+                        Offset(Array(index)),
+                        DamlLogEntryId
+                          .newBuilder()
+                          .setEntryId(ByteString.copyFrom(entryId))
+                          .build(),
+                        envelope,
+                      )
+                  }.*
+                )))
+        })
+      )
+      .map { case (_, record) => record }
 
   override def commit(correlationId: String, envelope: Array[Byte]): Future[SubmissionResult] =
     withConnection { implicit connection =>
@@ -193,15 +203,14 @@ class SqlLedgerReaderWriter(
   }
 
   private def withConnection[Out, Mat](
-      body: Connection => Source[Out, Future[Mat]],
+      body: Connection => Future[Source[Out, Mat]],
   ): Source[Out, NotUsed] = {
     val connection = connectionSource.getConnection()
-    body(connection).mapMaterializedValue(mat => {
-      mat.onComplete { _ =>
-        connection.close()
-      }
-      NotUsed
-    })
+    val result = body(connection)
+    result.onComplete { _ =>
+      connection.close()
+    }
+    Source.futureSource(result).mapMaterializedValue(_ => NotUsed)
   }
 
   private def executeBatchSql(
@@ -217,9 +226,9 @@ class SqlLedgerReaderWriter(
 object SqlLedgerReaderWriter {
   type Index = Long
 
-  private val FirstIndex: Index = 1
+  val FirstIndex: Index = 1
 
-  private val FirstOffset: Offset = Offset(Array(0))
+  private val FirstOffset: Offset = Offset(Array(FirstIndex))
 
   def apply(
       ledgerId: LedgerId = Ref.LedgerString.assertFromString(UUID.randomUUID.toString),

@@ -18,9 +18,12 @@ import scala.util.Random
 class H2SqlLedgerReaderWriterIntegrationSpec extends ParticipantStateIntegrationSpecBase("H2 SQL") {
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
+  override val firstIndex: Long = SqlLedgerReaderWriter.FirstIndex
+
   override def participantStateFactory(
       participantId: ParticipantId,
-      ledgerId: LedgerString): ReadService with WriteService = {
+      ledgerId: LedgerString,
+  ): ReadService with WriteService = {
     val databaseName = s"${getClass.getSimpleName.toLowerCase()}_${Random.nextInt()}"
     val jdbcUrl = s"jdbc:h2:mem:$databaseName;db_close_delay=-1;db_close_on_exit=false"
     val readerWriter =
