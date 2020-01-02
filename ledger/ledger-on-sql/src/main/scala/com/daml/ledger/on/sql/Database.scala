@@ -24,7 +24,7 @@ object Database {
   final class H2Database extends Database {
     override val queries: Queries = new H2Queries
 
-    override val maximumPoolSize: Option[Int] = None
+    override val maximumPoolSize: Option[Int] = Some(1)
   }
 
   final class SqliteDatabase extends Database {
