@@ -24,6 +24,7 @@ compile_deps = [
     "@maven//:com_typesafe_play_anorm_2_12",
     "@maven//:com_typesafe_play_anorm_akka_2_12",
     "@maven//:com_typesafe_play_anorm_tokenizer_2_12",
+    "@maven//:com_zaxxer_HikariCP",
 ]
 
 runtime_deps = [
