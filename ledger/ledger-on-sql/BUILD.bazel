@@ -30,7 +30,6 @@ compile_deps = [
 runtime_deps = [
     "@maven//:ch_qos_logback_logback_classic",
     "@maven//:ch_qos_logback_logback_core",
-    "@maven//:com_h2database_h2",
 ]
 
 da_scala_library(
@@ -42,6 +41,7 @@ da_scala_library(
         "//visibility:public",
     ],
     deps = compile_deps,
+    runtime_deps = runtime_deps,
 )
 
 da_scala_test(
@@ -61,22 +61,28 @@ da_scala_test(
         "@maven//:org_scalactic_scalactic_2_12",
         "@maven//:org_scalatest_scalatest_2_12",
     ],
+    runtime_deps = [
+        "@maven//:com_h2database_h2",
+        "@maven//:org_xerial_sqlite_jdbc",
+    ],
 )
 
 da_scala_binary(
-    name = "app",
+    name = "app-h2database",
     main_class = "com.daml.ledger.on.sql.Main",
     visibility = ["//visibility:public"],
-    runtime_deps = runtime_deps,
     deps = [
         ":ledger-on-sql",
+    ],
+    runtime_deps = [
+        "@maven//:com_h2database_h2",
     ],
 )
 
 conformance_test(
     name = "conformance-test-h2database",
     ports = [6865],
-    server = ":app",
+    server = ":app-h2database",
     server_args = [
         "--port=6865",
         "--jdbc-url=jdbc:h2:mem:daml-on-sql-conformance-test;db_close_delay=-1;db_close_on_exit=false",

@@ -20,12 +20,6 @@ import com.google.protobuf.ByteString
 import scala.collection.immutable
 
 trait CommonQueries extends Queries {
-  override def createLogTable()(implicit connection: Connection): Unit = {
-    SQL"CREATE TABLE IF NOT EXISTS log (sequence_no IDENTITY PRIMARY KEY, entry_id VARBINARY(16384), envelope BLOB)"
-      .execute()
-    ()
-  }
-
   override def createStateTable()(implicit connection: Connection): Unit = {
     SQL"CREATE TABLE IF NOT EXISTS state (key VARBINARY(16384) PRIMARY KEY, value BLOB)"
       .execute()
@@ -60,9 +54,6 @@ trait CommonQueries extends Queries {
     ()
   }
 
-  override def lastLogInsertId()(implicit connection: Connection): Index =
-    SQL"CALL IDENTITY()".as(long("IDENTITY()").single)
-
   override def selectStateByKeys(
       keys: Iterable[DamlStateKey],
   )(implicit connection: Connection): immutable.Seq[(DamlStateKey, Option[DamlStateValue])] =
@@ -76,10 +67,12 @@ trait CommonQueries extends Queries {
       stateUpdates: Map[DamlStateKey, DamlStateValue],
   )(implicit connection: Connection): Unit =
     Queries.executeBatchSql(
-      "MERGE INTO state VALUES ({key}, {value})",
+      updateStateQuery,
       stateUpdates.map {
         case (key, value) =>
           immutable.Seq[NamedParameter]("key" -> key.toByteArray, "value" -> value.toByteArray)
       }
     )
+
+  protected val updateStateQuery: String
 }

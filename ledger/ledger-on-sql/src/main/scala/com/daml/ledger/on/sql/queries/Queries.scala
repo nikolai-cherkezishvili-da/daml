@@ -46,6 +46,7 @@ object Queries {
   def forDatabase(jdbcUrl: String): Queries = {
     jdbcUrl match {
       case url if url.startsWith("jdbc:h2:") => new H2Queries
+      case url if url.startsWith("jdbc:sqlite:") => new SqliteQueries
       case _ => throw new InvalidDatabaseException(jdbcUrl)
     }
   }

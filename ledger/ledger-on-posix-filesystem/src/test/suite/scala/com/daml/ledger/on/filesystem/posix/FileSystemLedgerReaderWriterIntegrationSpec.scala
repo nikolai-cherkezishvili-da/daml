@@ -20,9 +20,9 @@ import scala.concurrent.{Await, ExecutionContext}
 class FileSystemLedgerReaderWriterIntegrationSpec
     extends ParticipantStateIntegrationSpecBase("file system") {
 
-  private var directory: Path = _
-
   private implicit val ec: ExecutionContext = ExecutionContext.global
+
+  private var directory: Path = _
 
   override def beforeEach(): Unit = {
     directory = Files.createTempDirectory(getClass.getSimpleName)
