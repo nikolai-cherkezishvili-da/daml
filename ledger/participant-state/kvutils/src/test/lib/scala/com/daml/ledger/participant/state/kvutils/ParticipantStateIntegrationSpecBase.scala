@@ -35,14 +35,14 @@ abstract class ParticipantStateIntegrationSpecBase(implementationName: String)
 
   private var ledgerId: LedgerString = _
   private var rt: Timestamp = _
-  var ps: ReadService with WriteService = _
+  var ps: ParticipantState = _
 
   val firstIndex: Long = 0
 
   def participantStateFactory(
       participantId: ParticipantId,
       ledgerId: LedgerString,
-  ): ReadService with WriteService
+  ): ParticipantState
 
   def currentRecordTime(): Timestamp
 
@@ -51,6 +51,12 @@ abstract class ParticipantStateIntegrationSpecBase(implementationName: String)
     ledgerId = Ref.LedgerString.assertFromString(s"ledger-${UUID.randomUUID()}")
     ps = participantStateFactory(participantId, ledgerId)
     rt = currentRecordTime()
+  }
+
+  override protected def afterEach(): Unit = {
+    if (ps != null) {
+      ps.close()
+    }
   }
 
   private val alice = Ref.Party.assertFromString("alice")
@@ -507,6 +513,8 @@ abstract class ParticipantStateIntegrationSpecBase(implementationName: String)
 }
 
 object ParticipantStateIntegrationSpecBase {
+  type ParticipantState = ReadService with WriteService with AutoCloseable
+
   private val DefaultIdleTimeout = FiniteDuration(5, TimeUnit.SECONDS)
   private val emptyTransaction: SubmittedTransaction =
     GenTransaction(SortedMap.empty, ImmArray.empty, Some(InsertOrdSet.empty))

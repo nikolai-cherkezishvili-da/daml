@@ -8,6 +8,7 @@ import java.time.Clock
 
 import com.daml.ledger.on.filesystem.posix.DeleteFiles.deleteFiles
 import com.daml.ledger.participant.state.kvutils.ParticipantStateIntegrationSpecBase
+import com.daml.ledger.participant.state.kvutils.ParticipantStateIntegrationSpecBase.ParticipantState
 import com.daml.ledger.participant.state.kvutils.api.KeyValueParticipantState
 import com.daml.ledger.participant.state.v1._
 import com.digitalasset.daml.lf.data.Ref.LedgerString
@@ -38,7 +39,7 @@ class FileSystemLedgerReaderWriterIntegrationSpec
   override def participantStateFactory(
       participantId: ParticipantId,
       ledgerId: LedgerString,
-  ): ReadService with WriteService = {
+  ): ParticipantState = {
     val readerWriter =
       Await.result(FileSystemLedgerReaderWriter(ledgerId, participantId, directory), 1.second)
     new KeyValueParticipantState(readerWriter, readerWriter)
