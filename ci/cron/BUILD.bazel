@@ -12,6 +12,7 @@ da_haskell_binary(
         "containers",
         "directory",
         "extra",
+        "filepath",
         "http-client",
         "http-client-tls",
         "http-types",

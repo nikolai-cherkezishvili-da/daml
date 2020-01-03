@@ -4,6 +4,7 @@
 module Main (main) where
 
 import Data.Function ((&))
+import System.FilePath.Posix ((</>))
 
 import qualified Control.Monad as Control
 import qualified Data.Aeson as JSON
@@ -116,8 +117,8 @@ to_v s = case map read $ Split.splitOn "." s of
 build_docs_folder :: String -> [String] -> String -> IO String
 build_docs_folder path versions latest = do
     restore_sha $ do
-        let old = path <> "/old"
-        let new = path <> "/new"
+        let old = path </> "old"
+        let new = path </> "new"
         download_existing_site_from_s3 old
         Foldable.for_ versions $ \version -> do
             putStrLn $ "Building " <> version <> "..."
@@ -133,7 +134,7 @@ build_docs_folder path versions latest = do
                 if checksums_match
                 then do
                     putStrLn "  Checks, reusing existing."
-                    copy (old <> "/" <> version) $ new <> "/" <> version
+                    copy (old </> version) $ new </> version
                 else do
                     putStrLn "  Check failed. Rebuilding..."
                     build version new
@@ -142,7 +143,7 @@ build_docs_folder path versions latest = do
                 build version new
             putStrLn $ "Done " <> version <> "."
         putStrLn $ "Copying latest (" <> latest <> ") to top-level..."
-        copy (new <> "/" <> latest <> "/*") (new <> "/")
+        copy (new </> latest </> "*") (new <> "/")
         putStrLn "Creating versions.json..."
         create_versions_json versions new
         return new
@@ -156,11 +157,11 @@ build_docs_folder path versions latest = do
             shell_ $ "mkdir -p " <> path
             shell_ $ "aws s3 sync s3://docs-daml-com/ " <> path
         exists dir name = do
-            dir_exists <- Directory.doesDirectoryExist $ dir <> "/" <> name
-            dir_has_checksum_file <- Directory.doesFileExist $ dir <> "/" <> name <> "/checksum"
+            dir_exists <- Directory.doesDirectoryExist $ dir </> name
+            dir_has_checksum_file <- Directory.doesFileExist $ dir </> name </> "checksum"
             return $ dir_exists && dir_has_checksum_file
         checksums path version = do
-            let cmd = "cd " <> path <> "/" <> version <> "; sha256sum -c checksum"
+            let cmd = "cd " <> path </> version <> "; sha256sum -c checksum"
             (code, _, _) <- shell_exit_code cmd
             case code of
                 Exit.ExitSuccess -> return True
@@ -171,10 +172,10 @@ build_docs_folder path versions latest = do
             shell_ $ "git checkout v" <> version
             robustly_download_nix_packages
             shell_ "bazel build //docs:docs"
-            shell_ $ "mkdir -p  " <> path <> "/" <> version
-            shell_ $ "tar xzf bazel-bin/docs/html.tar.gz --strip-components=1 -C" <> path <> "/" <> version
-            checksums <- shell $ "cd " <> path <> "/" <> version <> "; find . -type f -exec sha256sum {} \\;"
-            writeFile (path <> "/" <> version <> "/checksum") checksums
+            shell_ $ "mkdir -p  " <> path </> version
+            shell_ $ "tar xzf bazel-bin/docs/html.tar.gz --strip-components=1 -C" <> path </> version
+            checksums <- shell $ "cd " <> path </> version <> "; find . -type f -exec sha256sum {} \\;"
+            writeFile (path </> version </> "checksum") checksums
         create_versions_json versions path = do
             -- Not going through Aeson because it represents JSON objects as
             -- unordered maps, and here order matters.
@@ -182,7 +183,7 @@ build_docs_folder path versions latest = do
                                 & map (\s -> "\"" <> s <> "\": \"" <> s <> "\"")
                                 & List.join ", "
                                 & \s -> "{" <> s <> "}"
-            writeFile (path <> "/versions.json") versions_json
+            writeFile (path </> "versions.json") versions_json
 
 
 fetch_s3_versions :: IO (Set.Set Version)
@@ -199,7 +200,7 @@ fetch_s3_versions = do
 push_to_s3 :: String -> IO ()
 push_to_s3 doc_folder = do
     putStrLn "Pushing new versions file first..."
-    shell_ $ "aws s3 cp " <> doc_folder <> "/versions.json s3://docs-daml-com/versions.json --acl public-read"
+    shell_ $ "aws s3 cp " <> doc_folder </> "versions.json s3://docs-daml-com/versions.json --acl public-read"
     putStrLn "Pushing to S3 bucket..."
     shell_ $ "aws s3 sync " <> doc_folder
              <> " s3://docs-daml-com/"
@@ -262,7 +263,7 @@ tell_hubspot latest = do
       Just BlogId { blog_id } -> do
           -- DEBUG
           putStrLn $ "Parsed blog ID as " <> show blog_id
-          _ <- http_post ("https://api.hubapi.com/content/api/v2/blog-posts/" <> show blog_id <> "/publish-action?hapikey=" <> token)
+          _ <- http_post ("https://api.hubapi.com/content/api/v2/blog-posts/" <> show blog_id </> "publish-action?hapikey=" <> token)
                          [("Content-Type", "application/json")]
                          (JSON.encode $ JSON.object [("action", "schedule-publish")])
           return ()
