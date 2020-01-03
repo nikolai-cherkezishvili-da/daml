@@ -10,6 +10,7 @@ da_haskell_binary(
         "aeson",
         "base",
         "containers",
+        "directory",
         "extra",
         "http-client",
         "http-client-tls",
